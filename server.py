@@ -1,16 +1,16 @@
-import os
-import dotenv
+import chromadb, urllib3, os, json
+from dotenv import load_dotenv
+# Load environment variables
+load_dotenv()
+os.environ["OPENAI_API_KEY"] = os.getenv('OPENAI_API_KEY')
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
-import chromadb
 from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageContext, Settings, PromptTemplate
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.node_parser import SentenceSplitter
-
-# Load environment variables
-# dotenv.load_dotenv()
-# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+from llama_index.readers.web import SimpleWebPageReader
 
 # Constants
 MODEL_NAME = "text-embedding-3-large"
@@ -18,6 +18,9 @@ CHROMA_DB_PATH = './chroma_db'
 DATA_DIR = "./data"
 TOP_K = 2
 SYSTEM_PROMPT = "if you don't know the answer, just say it's not in the context, use the data provided in the document only"
+COREDNA_API_ENDPOINT = "https://coredna.com/cdna-api"
+COREDNA_API_KEY = os.getenv('COREDNA_API_KEY')
+
 
 # Text QA templates
 DEFAULT_TEXT_QA_PROMPT_TMPL = (
@@ -57,17 +60,51 @@ def initialize_index():
         index = VectorStoreIndex.from_vector_store(vector_store)
 
 def load_and_initialize_data(storage_context):
+
     """Load documents from the directory and initialize the vector store and index."""
     global index
     splitter = SentenceSplitter()
-    documents = SimpleDirectoryReader(DATA_DIR).load_data()
+
+    # load webpage data from crawler
+    document_pages = load_webpages_to_documents()
+
+    # load csv data from local folders
+    document_csv = SimpleDirectoryReader(DATA_DIR).load_data()
+
+    # combine all documents
+    documents = document_pages + document_csv
     
     index = VectorStoreIndex.from_documents(
-        documents, 
-        storage_context=storage_context, 
+        documents,
+        storage_context=storage_context,
         embed_model=Settings.embed_model, 
         transformations=[splitter]
     )
+
+# Load webpage content into global documents
+def load_webpages_to_documents():
+
+    pages_to_scan = get_list_of_pages()
+
+    urls = [f"https:{page['url']}" for page in pages_to_scan]
+
+    documents = SimpleWebPageReader(html_to_text=True).load_data(urls = urls)
+
+    return documents
+
+def get_list_of_pages():
+
+    # Make API calls to get list of pages to crawl
+    response = urllib3.request(
+        'GET', 
+        f"{COREDNA_API_ENDPOINT}/pages/pages?properties={{url}}",
+        headers = {
+            'Authorization': COREDNA_API_KEY
+        }
+    )
+    content = json.loads(response.data.decode('utf-8'))
+
+    return content['data']
 
 # Initialize Flask app
 app = Flask(__name__)
