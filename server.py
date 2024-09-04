@@ -1,3 +1,5 @@
+from constants import DEFAULT_TEXT_QA_PROMPT_TMPL, CHROMA_DB_PATH, MODEL_NAME, DATA_DIR, COREDNA_SITE, COREDNA_API_ENDPOINT, COREDNA_API_KEY,TOP_K
+
 import chromadb, urllib3, os, json
 from dotenv import load_dotenv
 # Load environment variables
@@ -10,28 +12,7 @@ from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, StorageCon
 from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.readers.web import SimpleWebPageReader
-
-# Constants
-MODEL_NAME = "text-embedding-3-large"
-CHROMA_DB_PATH = './chroma_db'
-DATA_DIR = "./data"
-TOP_K = 2
-SYSTEM_PROMPT = "if you don't know the answer, just say it's not in the context, use the data provided in the document only"
-COREDNA_API_ENDPOINT = "https://coredna.com/cdna-api"
-COREDNA_API_KEY = os.getenv('COREDNA_API_KEY')
-
-
-# Text QA templates
-DEFAULT_TEXT_QA_PROMPT_TMPL = (
-    "Context information is below. \n"
-    "---------------------\n"
-    "{context_str}"
-    "\n---------------------\n"
-    "Given the context information answer the following question "
-    f"({SYSTEM_PROMPT}):" 
-    "{query_str}\n"
-)
+from llama_index.readers.web import SitemapReader
 
 # Global variable to store the index
 index = None
@@ -84,11 +65,21 @@ def load_and_initialize_data(storage_context):
 # Load webpage content into global documents
 def load_webpages_to_documents():
 
-    pages_to_scan = get_list_of_pages()
+    # pages_to_scan = get_list_of_pages()
 
-    urls = [f"https:{page['url']}" for page in pages_to_scan]
+    # urls = [f"https:{page['url']}" for page in pages_to_scan]
 
-    documents = SimpleWebPageReader(html_to_text=True).load_data(urls = urls)
+    # documents = SimpleWebPageReader(html_to_text=True).load_data(urls = urls)
+
+    # for doc, url in zip(documents, urls):
+    #     doc.metadata = {'url': url}
+
+    loader = SitemapReader()
+
+    documents = loader.load_data(
+        sitemap_url=f"{COREDNA_SITE}sitemap.xml",
+        filter={COREDNA_SITE}
+    )
 
     return documents
 
@@ -106,9 +97,17 @@ def get_list_of_pages():
 
     return content['data']
 
+
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
+
+@app.route('/', methods=['GET'])
+@cross_origin()
+def index():
+    return jsonify({"status": "OK"})
+
 
 @app.route('/query', methods=['POST'])
 @cross_origin()
@@ -125,11 +124,20 @@ def query_index():
 
         query_engine = index.as_query_engine(
             similarity_top_k=TOP_K,
-            text_qa_template=TEXT_QA_TEMPLATE
+            text_qa_template=TEXT_QA_TEMPLATE,
+            include_metadata=True
         )
         
         response = query_engine.query(query)
-        return jsonify({"response": str(response)})
+
+        answer = str(response)
+        source_links = [node.metadata.get('Source', '') for node in response.source_nodes if node.metadata.get('Source')]
+
+        if source_links:
+            answer += f"\n\nIf you would like to read more, here is the link: {source_links[0]}"
+
+        return jsonify({"response": answer})
+    
     except Exception as e:
         return jsonify({"error": f"Failed to process query: {str(e)}"}), 500
 

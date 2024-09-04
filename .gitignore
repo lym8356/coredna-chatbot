@@ -170,3 +170,6 @@ ehthumbs.db
 
 # Other
 .idea/
+
+#chromadb
+chroma_db/
