@@ -1,6 +1,6 @@
-from constants import DEFAULT_TEXT_QA_PROMPT_TMPL, CHROMA_DB_PATH, MODEL_NAME, DATA_DIR, COREDNA_SITE, COREDNA_API_ENDPOINT, COREDNA_API_KEY,TOP_K
+from constants import DEFAULT_TEXT_QA_PROMPT_TMPL, CHROMA_DB_PATH, MODEL_NAME, DATA_DIR, COREDNA_SITE,TOP_K
 
-import chromadb, urllib3, os, json
+import chromadb,  os
 from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
@@ -13,6 +13,10 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.readers.web import SitemapReader
+
+from llama_index.core.tools import QueryEngineTool, ToolMetadata
+from tools.http_request_tool import http_tool
+from agent.agent import build_react_agent, build_openai_agent, build_function_calling_agent
 
 # Global variable to store the index
 index = None
@@ -29,7 +33,7 @@ def initialize_index():
 
     # Update Settings for VectorStoreIndex
     Settings.embed_model = embed_model
-    Settings.chunk_size = 1024
+    Settings.chunk_size = 512
     Settings.chunk_overlap = 20
 
     storage_context = StorageContext.from_defaults(vector_store=vector_store)
@@ -83,21 +87,6 @@ def load_webpages_to_documents():
 
     return documents
 
-def get_list_of_pages():
-
-    # Make API calls to get list of pages to crawl
-    response = urllib3.request(
-        'GET', 
-        f"{COREDNA_API_ENDPOINT}/pages/pages?properties={{url}}",
-        headers = {
-            'Authorization': COREDNA_API_KEY
-        }
-    )
-    content = json.loads(response.data.decode('utf-8'))
-
-    return content['data']
-
-
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -107,6 +96,11 @@ CORS(app)
 @cross_origin()
 def index():
     return jsonify({"status": "OK"})
+
+# endpoint to accpet a file 
+
+
+# endpoint to handle sitemap URL
 
 
 @app.route('/query', methods=['POST'])
@@ -127,14 +121,29 @@ def query_index():
             text_qa_template=TEXT_QA_TEMPLATE,
             include_metadata=True
         )
+
+        tool = QueryEngineTool(
+            query_engine=query_engine,
+            metadata=ToolMetadata(
+                name="knowledge_engine",
+                description="This tool is the knowledge base of everything, query should always search in here first"
+            )
+        )
+        # testing, convert the above to a tool
+        # build http tool
+        request_tool = http_tool()
+        # testing, build an agent
+        # agent = build_react_agent([tool,request_tool])
+        agent = build_react_agent([tool,request_tool])
         
-        response = query_engine.query(query)
+        # response = query_engine.query(query)
+        response = agent.chat(query)
 
         answer = str(response)
-        source_links = [node.metadata.get('Source', '') for node in response.source_nodes if node.metadata.get('Source')]
+        # source_links = [node.metadata.get('Source', '') for node in response.source_nodes if node.metadata.get('Source')]
 
-        if source_links:
-            answer += f"\n\nIf you would like to read more, here is the link: {source_links[0]}"
+        # if source_links:
+        #     answer += f"\n\nIf you would like to read more, here is the link: {source_links[0]}"
 
         return jsonify({"response": answer})
     
