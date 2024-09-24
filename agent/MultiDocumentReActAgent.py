@@ -1,92 +1,100 @@
-from llama_index.core import (
-    SimpleDirectoryReader,
-    VectorStoreIndex,
-    StorageContext,
-    load_index_from_storage,
-    Settings
-)
-from llama_index.llms.ollama import Ollama
-from llama_index.embeddings.ollama import OllamaEmbedding
+from llama_index.core import Settings
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
 from llama_index.core.agent import ReActAgent
-from llama_index.core.chat_engine.types import AgentChatResponse
 
-import chromadb
-from utils import load_data_from_sitemap, load_data_from_files
-from llama_index.vector_stores.chroma import ChromaVectorStore
-from constants import CHROMA_DB_PATH, DEFAULT_AGENT_CONTEXT
+from constants import MULTI_DOCUMENT_AGENT_PROMPT, CHUNK_SIZE, OPENAI_EMBEDDING_MODEL, OPENAI_MODEL
+from storage.Index import Index
 
-# There should be 1 
+"""
+This agent is ONLY responsible for fetching content from the vector database
+Content includes static content like web pages, PDFs, CSVs, videos etc
+
+All the tools built for this agent are from different data sources
+Optional: Create 1 tool for each category of data source
+Example: 1 tool for reading FAQ, 1 tool for web pages
+
+All content needs to be summarized
+There should be 1 data node which takes multiple data sources, all data sources should combine into 1 data node
+
+Use SummaryIndex provided by LLamaIndex to convert this conbined data node to index object
+Create a query engine base on the index
+Create a tool base on the query engine
+"""
+
 class MultiDocumentReActAgent:
+    def __init__(self, index_handler) -> None:
 
-    def __init__(self) -> None:
+        """
+        Initialize the MultiDocumentReActAgent.
 
-        Settings.chunk_size = 512
-        Settings.embed_model = OllamaEmbedding(model_name='snowflake-arctic-embed:33m')
-        Settings.llm = Ollama(model='mistral:latest')
+        Args:
+            index_handler (Index): An instance of the Index class, containing the loaded index to use for the agent.
+        """
 
-        # database connection
+        Settings.chunk_size = CHUNK_SIZE
+        Settings.embed_model = OPENAI_EMBEDDING_MODEL
+        Settings.llm = OPENAI_MODEL
 
-         # Initialize ChromaDB client
-        db = chromadb.PersistentClient(path=CHROMA_DB_PATH)
+        # TODO: external vector database connection
 
-        # TODO: allow users to upload files and create new collection base on file name
+        # Initialize Index class to handle index operations
+        self.index_handler: Index = index_handler
 
-        faq_collection = db.get_or_create_collection("faq_collection")
-        sitemap_collection = db.get_or_create_collection("sitemap_collection")
-        faq_vector_store = ChromaVectorStore(chroma_collection=faq_collection)
-        sitemap_vector_store = ChromaVectorStore(chroma_collection=sitemap_collection)
+        self.index = self.index_handler.get_index()  # This should be an instance of VectorStoreIndex
+        self.index_loaded = self.index is not None 
 
-        self.faq_storage_context = StorageContext.from_defaults(vector_store=faq_vector_store)
-        self.sitemap_storage_context = StorageContext.from_defaults(vector_store=sitemap_vector_store)
-        self.index_loaded = False
-        self.index = None
         self.query_engine_tools = []
 
+        self.create_query_engine_and_tools()
 
-    def load_from_existing_context(self):
 
-        try:
-            # TODO: load in a loop base on collection
-            self._index = load_index_from_storage(storage_context=self.faq_storage_context)
-            self.ge_index = load_index_from_storage(storage_context=self.sitemap_storage_context)
-            self.index_loaded = True
-        except Exception as e:
-            self.index_loaded = False
+    def get_index_handler(self):
+        return self.index_handler
+    
+    def get_engine_tools(self):
+        return self.query_engine_tools
+        
+    def create_query_engine_and_tools(self):
+
+        """
+        Create a query engine and associated tools for the agent.
+        """
 
         if not self.index_loaded:
-            # load data
-            # TODO: the folder name should be dynamic, this is passed in as a parameter when the class is created
-            file_docs = load_data_from_files(directory='coredna')
+            raise ValueError("Index is not loaded. Ensure the provided index_handler has a loaded index.")
 
-            # build index
-            self.ge_index = VectorStoreIndex.from_documents(documents=ge_docs, storage_context=self.ge_storage_context)
-            
-            
-        
-        def create_query_engine_and_tools(self):
+        qa_engine = self.index.as_query_engine()
 
-            ge_engine = self.ge_index.as_query_engine(similarity_top_k=3)
-
-            self.query_engine_tools = [
-                QueryEngineTool(
-                    query_engine=ge_engine,
-                    metadata=ToolMetadata(
-                        name="multi_document_engine",
+        self.query_engine_tools = [
+            QueryEngineTool(
+                query_engine=qa_engine,
+                metadata=ToolMetadata(
+                        name="multi_document_engine_tool",
                         description=(
-                            "Provides detailed financial information about GE for the year 2023. "
-                            "Input a specific plain text financial query for the tool"
+                            "Provides detailed information about CoreDNA"
                         ),
                     ),
                 )
             ]
+        print("tools created")
 
-        def create_agent(self):
+    def create_agent(self):
 
-            agent = ReActAgent.from_tools(
-                self.query_engine_tools,
-                llm=Settings.llm,
-                verbose=True,
-                context=DEFAULT_AGENT_CONTEXT
-            )
-            return agent
+        """
+        Create a ReAct agent using the query engine tools.
+
+        Returns:
+            ReActAgent: The created agent.
+        """
+
+        if not self.query_engine_tools:
+            raise ValueError("Query engine tools are not created. Call 'create_query_engine_and_tools' first.")
+
+        agent = ReActAgent.from_tools(
+            self.query_engine_tools,
+            llm=Settings.llm,
+            verbose=True,
+            context=MULTI_DOCUMENT_AGENT_PROMPT
+        )
+        print("agent created")
+        return agent
