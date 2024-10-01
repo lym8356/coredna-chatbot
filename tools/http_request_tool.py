@@ -1,7 +1,7 @@
 from llama_index.core.tools import FunctionTool, ToolMetadata
 import requests
 
-def http_request(url: str, method: str, email: str = None, data: dict = None):
+def http_request(url: str, method: str, data: dict = None):
 
     """
     Sends an HTTP request to the provided URL with the specified method.

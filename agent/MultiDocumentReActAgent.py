@@ -1,8 +1,9 @@
 from llama_index.core import Settings
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
 from llama_index.core.agent import ReActAgent
+from llama_index.core.prompts import PromptTemplate
 
-from constants import MULTI_DOCUMENT_AGENT_PROMPT, CHUNK_SIZE, OPENAI_EMBEDDING_MODEL, OPENAI_MODEL
+from constants import MULTI_DOCUMENT_AGENT_PROMPT, CHUNK_SIZE, OPENAI_EMBEDDING_MODEL, OPENAI_MODEL, DEFAULT_QA_PROMPT_TMPL
 from storage.Index import Index
 
 """
@@ -44,6 +45,7 @@ class MultiDocumentReActAgent:
         self.index_loaded = self.index is not None 
 
         self.query_engine_tools = []
+        self.query_engine = None
 
         self.create_query_engine_and_tools()
 
@@ -63,11 +65,12 @@ class MultiDocumentReActAgent:
         if not self.index_loaded:
             raise ValueError("Index is not loaded. Ensure the provided index_handler has a loaded index.")
 
-        qa_engine = self.index.as_query_engine()
+        text_qa_template=PromptTemplate(DEFAULT_QA_PROMPT_TMPL)
+        self.query_engine = self.index.as_query_engine(text_qa_template=text_qa_template, llm=Settings.llm)
 
         self.query_engine_tools = [
             QueryEngineTool(
-                query_engine=qa_engine,
+                query_engine=self.query_engine,
                 metadata=ToolMetadata(
                         name="multi_document_engine_tool",
                         description=(
@@ -96,5 +99,6 @@ class MultiDocumentReActAgent:
             verbose=True,
             context=MULTI_DOCUMENT_AGENT_PROMPT
         )
-        print("agent created")
+        print("rag agent created")
         return agent
+    

@@ -2,18 +2,17 @@ import os
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 
-
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-SYSTEM_PROMPT = "use the data provided in the context only, if the source is available, always append the source to the end of answer, if you don't know the question, say it's not in your database"
+SYSTEM_PROMPT = "use the data provided in the context only, if the source is available, always append the source to the end of answer, if you don't know the question, write it's not in your database"
 
 # Text QA templates
-DEFAULT_TEXT_QA_PROMPT_TMPL = (
+DEFAULT_QA_PROMPT_TMPL = (
     "Context information is below. \n"
     "---------------------\n"
     "{context_str}"
     "\n---------------------\n"
-    "Given the context information answer the following question "
+    "Given the context information answer the following question"
     f"({SYSTEM_PROMPT}):" 
     "{query_str}\n"
 )
@@ -23,15 +22,56 @@ MULTI_DOCUMENT_AGENT_PROMPT = """
 You are an expert agent embedded with comprehensive knowledge of CoreDNA, a powerful digital experience platform. You are equipped with the MultiDocumentTool, enabling you to access and provide information from a vast repository of documents related to CoreDNA’s platform features, capabilities, best practices, and strategic applications.
 Your purpose is to assist users by answering their questions with accurate, relevant, and contextually rich information sourced from these documents. 
 When responding to queries, your goal is to provide clear, concise, and actionable insights, always drawing from the most relevant documents in your knowledge base. You can handle complex technical details and explain them in an accessible manner, catering to both technical and non-technical users.
-You do not speculate or provide information outside your document repository. If a question cannot be answered with the available data, you will clearly state that you cannot answer this question. If the source is available and it's a website, put the URL in your answer too.
-Use the MultiDocumentTool to source the most relevant and accurate information for each query, ensuring that your responses are well-informed and precise. Your objective is to be a trusted source of knowledge and support for all things related to CoreDNA.
+You do not speculate or provide information outside your document repository. If a question cannot be answered with the available data, you will clearly state that you cannot answer this question.
+Use the MultiDocumentTool to source the most relevant and accurate information for each query, ensuring that your responses are well-informed and precise. Your objective is to be a trusted source of knowledge and support for all things related to CoreDNA. If the source is available from the Tool, include it in the answer as well.
+"""
+
+
+ROUTER_AGENT_PROMPT = """ \
+You are a top-level agent designed to choose the most appropriate agent of the 2 agents provided in the object index based on the user query and use the appropriate agent to answer queries about coredna
+Please ALWAYS choose the approprate agents among the 2 provided based on the user query to answer a question. Do NOT rely on prior knowledge.\
+"""
+
+ACTION_ANALYZER_AGENT_PROMPT = """
+You are an AI agent responsible for handling user requests with the following tools at your disposal:
+
+HTTP Tool: Use this to make HTTP requests to URLs, this tool requires 2 parameters, url: str, method: str, data: dict = None
+Tag_Exists Tool: Use this to check if a specific tag, such as a form element, exists on a given URL.
+Fetch_Field Tool: Use this to fetch specific input fields from a URL. You need to identify input fields with name attributes that start with field_ and an input field with the name embedCode.
+
+If the user requests to download or fetch something from a URL:
+
+Use the Tag_Exists tool to check if the URL contains a form element, this tool requires 2 parameters, tag_name:str and url:str.
+If the form exists:
+
+Use the Fetch_Field tool to retrieve the following fields, this tool requires 2 parameters, input_name: str, url: str:
+All input fields with name starting with 'field_', except the one that has the value 57a3995e-d350-41cf-a5b7-c949acd1d9d9
+An input field with the name embedCode.
+For each input field starting with field_:
+
+Extract the keyword from the field name and formulate a relevant question to ask the user.
+Example: If the field is field_1376: Your work email, ask the user, "Could you please provide your work email address?"
+Collect the user's answer for each question.
+For the embedCode input field:
+
+Extract and store the value of this field.
+Once all relevant questions have been asked:
+
+Compile the collected responses from the user.
+For each of the collected response, build a JSON object in this format:
+embedCode: "",
+field_xxx: "",
+field_xxx: ""
+then pass this JSON object to the sharpspring tool, the sharpspring tool should return a URL, this tool requires 1 parameter: ss_details: dict
+pass this URL to the http tool, the url parameter is the URL generated by sharpspring tool, method is get, do not pass in data
 """
 
 # Model config
 TOP_K = 2
 CHROMA_DB_PATH = os.path.join(PROJECT_ROOT, 'chroma_db')
 DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
-CHUNK_SIZE = 512
+CHUNK_SIZE = 1024
+
 
 # Open AI
 OPENAI_EMBEDDING_MODEL_NAME = "text-embedding-ada-002"
@@ -47,3 +87,5 @@ COREDNA_API_KEY = os.getenv('COREDNA_API_KEY')
 
 SIMPLE_DIRECTORY_READER_SUPPORTED_TYPES = ['.csv','.docx','.epub','.hwp','.ipynb','.jpeg', 
                                            '.jpg ','mbox','.md','.mp3','.mp4','.pdf','.png','.ppt','.pptm','.pptx']
+
+SHARPSPRING_ENDPOINT = "https://app-3QN63QD29U.marketingautomation.services/webforms/receivePostback/MzawMDE1sjQxBwA/"

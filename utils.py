@@ -1,4 +1,3 @@
-from bs4 import BeautifulSoup
 import requests, os
 from typing import List, cast, Optional
 from llama_index.core import (
@@ -8,13 +7,6 @@ from llama_index.readers.web import SitemapReader
 from llama_index.core import SimpleDirectoryReader
 
 from constants import SIMPLE_DIRECTORY_READER_SUPPORTED_TYPES, DATA_DIR
-
-def check_if_css_class_exists(url: str, css_class: str):
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    forms = soup.find_all('a')
-
-    return len(forms)
 
 
 def load_data_from_files(

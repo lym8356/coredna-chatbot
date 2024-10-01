@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 from multiprocessing import Lock
 from multiprocessing.managers import BaseManager
 
+# from agent import MultiDocumentReActAgent, ActionAnalyzerAgent
+from agent.ActionAnalyzerAgent import ActionAnalyzerAgent
 from agent.MultiDocumentReActAgent import MultiDocumentReActAgent
 from storage.Index import Index
 from utils import load_data_from_sitemap
@@ -58,7 +60,8 @@ def initialize():
     
     try:
         index_handler = initialize_index(collection_name)
-        agent = MultiDocumentReActAgent(index_handler=index_handler).create_agent()
+        # agent = MultiDocumentReActAgent(index_handler=index_handler).create_agent()
+        agent = ActionAnalyzerAgent(index_handler=index_handler).create_agent()
 
         return jsonify({"status": f"Index for collection '{collection_name}' has been initialized."}), 200
     
