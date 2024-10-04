@@ -2,6 +2,7 @@ from llama_index.core import Settings
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
 from llama_index.core.agent import ReActAgent
 from llama_index.core.prompts import PromptTemplate
+from llama_index.agent.openai import OpenAIAgent
 
 from constants import MULTI_DOCUMENT_AGENT_PROMPT, CHUNK_SIZE, OPENAI_EMBEDDING_MODEL, OPENAI_MODEL, DEFAULT_QA_PROMPT_TMPL
 from storage.Index import Index
@@ -21,7 +22,7 @@ Use SummaryIndex provided by LLamaIndex to convert this conbined data node to in
 Create a query engine base on the index
 Create a tool base on the query engine
 """
-
+# TODO: convert into a sub class
 class MultiDocumentReActAgent:
     def __init__(self, index_handler) -> None:
 
@@ -81,7 +82,7 @@ class MultiDocumentReActAgent:
             ]
         print("tools created")
 
-    def create_agent(self):
+    def create_react_agent(self):
 
         """
         Create a ReAct agent using the query engine tools.
@@ -99,6 +100,21 @@ class MultiDocumentReActAgent:
             verbose=True,
             context=MULTI_DOCUMENT_AGENT_PROMPT
         )
-        print("rag agent created")
+        print("react rag agent created")
         return agent
+    
+    
+    def create_openai_agent(self):
+        if not self.query_engine_tools:
+            raise ValueError("Query engine tools are not created. Call 'create_query_engine_and_tools' first.")
+
+        agent = OpenAIAgent.from_tools(
+            tools=self.query_engine_tools,
+            llm=Settings.llm,
+            verbose=True,
+            system_prompt=MULTI_DOCUMENT_AGENT_PROMPT
+        )
+        print("openai rag agent created")
+        return agent
+    
     

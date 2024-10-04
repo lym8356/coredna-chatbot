@@ -4,12 +4,13 @@ from tools.coredna.sharpspring_tool import sharpspring_tool
 from tools.webpage_scanner_tool import tag_exists_tool, fetch_field_tool
 from llama_index.core.agent import ReActAgent
 from llama_index.core import Settings
-from constants import CHUNK_SIZE, OPENAI_EMBEDDING_MODEL, OPENAI_MODEL, ACTION_ANALYZER_AGENT_PROMPT
+from constants import CHUNK_SIZE, OPENAI_EMBEDDING_MODEL, OPENAI_MODEL, ACTION_AGENT_PROMPT
 from llama_index.core.prompts import PromptTemplate
+from llama_index.agent.openai import OpenAIAgent
 
 
 
-class ActionAnalyzerAgent:
+class ActionAgent:
     def __init__(self, index_handler) -> None:
         self.index_handler: Index = index_handler
         self.function_tools = [
@@ -27,17 +28,27 @@ class ActionAnalyzerAgent:
         return self.index_handler
     
     
-    def create_agent(self):
+    def create_react_agent(self):
         agent = ReActAgent.from_tools(
             tools=self.function_tools,
             llm=Settings.llm,
             verbose=True,
-            context=ACTION_ANALYZER_AGENT_PROMPT,
+            context=ACTION_AGENT_PROMPT,
             max_iterations=20
         )
         # react_system_prompt = PromptTemplate(ACTION_ANALYZER_AGENT_PROMPT)
         # agent.update_prompts({"agent_worker:system_prompt": react_system_prompt})
         # agent.reset()
-        print("action agent created")
+        print("react action agent created")
+        return agent
+    
+    def create_openai_agent(self):
+        agent = OpenAIAgent.from_tools(
+            tools=self.function_tools,
+            llm=Settings.llm,
+            verbose=True,
+            system_prompt=ACTION_AGENT_PROMPT
+        )
+        print("openai action agent created")
         return agent
         

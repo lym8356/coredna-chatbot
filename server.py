@@ -5,8 +5,12 @@ from multiprocessing import Lock
 from multiprocessing.managers import BaseManager
 
 # from agent import MultiDocumentReActAgent, ActionAnalyzerAgent
-from agent.ActionAnalyzerAgent import ActionAnalyzerAgent
+from agent.ActionAgent import ActionAgent
 from agent.MultiDocumentReActAgent import MultiDocumentReActAgent
+from agent.RouterAgent import RouterAgent
+from llama_index.core.tools import QueryEngineTool, ToolMetadata
+from llama_index.agent.openai import OpenAIAgent
+from constants import ROUTER_AGENT_PROMPT
 from storage.Index import Index
 from utils import load_data_from_sitemap
 # Load environment variables
@@ -60,8 +64,37 @@ def initialize():
     
     try:
         index_handler = initialize_index(collection_name)
-        # agent = MultiDocumentReActAgent(index_handler=index_handler).create_agent()
-        agent = ActionAnalyzerAgent(index_handler=index_handler).create_agent()
+        rag_agent = MultiDocumentReActAgent(index_handler=index_handler).create_openai_agent()
+        action_agent = ActionAgent(index_handler=index_handler).create_openai_agent()
+
+        agents = {
+            "rag_agent": rag_agent,
+            "action_agent": action_agent
+        }
+
+        rag_tool = QueryEngineTool(
+            query_engine=rag_agent,
+            metadata=ToolMetadata(
+                name="rag_agent_tool",
+                description="This tool uses the rag_agent to answer queries"
+            ),
+        )
+
+        action_tool = QueryEngineTool(
+            query_engine=action_agent,
+            metadata=ToolMetadata(
+                name="action_agent_tool",
+                description="This tool uses the action_agent to check if a specific HTML exists in a given URL"
+            ),
+        )
+
+        # agent = OpenAIAgent.from_tools(
+        #     tool_retriever=obj_index.as_retriever(similarity_top_k=1),
+        #     system_prompt=ROUTER_AGENT_PROMPT,
+        #     verbose=True
+        # )
+
+        agent = RouterAgent([rag_tool, action_tool]).create_agent()
 
         return jsonify({"status": f"Index for collection '{collection_name}' has been initialized."}), 200
     
