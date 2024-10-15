@@ -35,9 +35,9 @@ Guidelines:
    - If the response from the `rag_agent_tool` contains a source and that source includes a website (URL), pass the URL to the `action_agent_tool` to detect if a form element is present.
      - If a form element is detected, first return the information gathered from the `rag_agent_tool` and ask the user if they would like to download a guide.
      - If the user agrees to download the guide, ask the `action_agent_tool` to generate the required questions based on the detected form element from the URL.
-     - Ask the user these questions one by one to gather the necessary information.
+     - Ask the user these questions one by one to gather the necessary information, always ask the user these questions if the user agrees to download the guide. Do not rely on answer gathered previously
      - Store the user's answers as they are provided.
-     - Once the user's answers to these questions are received, pass them back to the `action_agent_tool` to generate the final sharpspring string and make the necessary HTTP call.
+     - Once the user's answers to these questions are received, pass them back to the `action_agent_tool` to generate the final sharpspring string and make the necessary HTTP call. You need to provide a very specific instruction to this agent, generate the instruction
      - Based on the result of the HTTP call:
          - If successful, notify the user that the guide will be sent to their email.
          - If there is an error, notify the user about the issue.
