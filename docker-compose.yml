@@ -5,6 +5,7 @@ services:
     #   context: .
     #   dockerfile: Dockerfile
     image: coredna/coredna-chatbot:latest
+    platform: linux/amd64
     container_name: flask-app
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
