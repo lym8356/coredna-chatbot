@@ -66,7 +66,7 @@ class ConciergeWorkflow(Workflow):
                 response = concierge.chat("Hello!")
 
             # print response
-            print(Fore.MAGENTA + str(response) + Style.RESET_ALL)
+            # print(Fore.MAGENTA + str(response) + Style.RESET_ALL)
             # here we need to fetch user input from client
             user_msg_str = input("> ").strip()
 

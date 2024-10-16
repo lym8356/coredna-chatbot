@@ -13,6 +13,7 @@ from llama_index.agent.openai import OpenAIAgent
 from constants import ROUTER_AGENT_PROMPT
 from storage.Index import Index
 from utils import load_data_from_sitemap
+import logging
 # Load environment variables
 load_dotenv()
 os.environ["OPENAI_API_KEY"] = os.getenv('OPENAI_API_KEY')
@@ -41,6 +42,11 @@ def initialize_index(collection_name: str):
     print(f"Index for collection '{collection_name}' has been initialized.")
     return index_handler
     
+# Set up logging
+logging.basicConfig(filename='app.log', level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s')
+logger = logging.getLogger(__name__)
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -162,20 +168,24 @@ def query():
 
     query = request.json.get('query')
     if not query:
+        logger.error("No query provided")
         return jsonify({"error": "Query not provided"}), 400
     
     global agent
     if agent is None:
+        logger.error("Agent not initialized")
         return jsonify({"error": "Agent is not initialized. Please initialize the index and agent first."}), 400
     
     try:
         answer = agent.chat(query)
+        logger.info(f"Query processed successfully: {query}")
         return jsonify({"response": str(answer)})
     
     except Exception as e:
+        logger.exception("Failed to process query")
         return jsonify({"error": f"Failed to process query: {str(e)}"}), 500
 
 
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=80)
+# enable this for development mode
+# if __name__ == '__main__':
+#     app.run(host='0.0.0.0', port=80)
