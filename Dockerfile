@@ -8,17 +8,14 @@ RUN apt-get update && apt-get install -y build-essential libpq-dev
 ENV PYTHONUNBUFFERED=1
 ENV APP_HOME=/app
 
-# Set working directory
 WORKDIR $APP_HOME
 
-# Copy requirements.txt and install dependencies
 COPY requirements.txt .
 
 # Install Python dependencies
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Copy the rest of the application code
 COPY . .
 
 # Expose the port for Gunicorn (this will be used internally by Docker Compose)
