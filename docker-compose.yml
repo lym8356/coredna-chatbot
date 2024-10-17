@@ -1,4 +1,3 @@
-version: '3'
 services:
   flask-app:
     # build:
@@ -11,6 +10,8 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     expose:
       - "8000"
+    volumes:
+      - chromadb-data:/app/chroma_db
     networks:
       - coredna-network
 
@@ -29,3 +30,6 @@ services:
 networks:
   coredna-network:
     driver: bridge
+    
+volumes:
+  chromadb-data:
